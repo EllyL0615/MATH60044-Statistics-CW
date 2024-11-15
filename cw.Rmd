@@ -2,18 +2,19 @@ Load required libraries
 ```{R}
 library(tidyverse)
 library(ggplot2)
+library(DT)
 ```
 
 
-Reading the data
+I. Reading the data
 ```{R}
 dmd_apnoea <- read_table("dmd-apnoea.txt")
+View(dmd_apnoea)
 ```
 
 
- Exploratory Data Analysis
- 1. Verify that you can reproduce Figure 1 of the paper. Make a version of this plot that is easier to read,
- perhaps by producing separate plots for different subtype/hypoventilation status.
+II. Exploratory Data Analysis
+1. Verify that you can reproduce Figure 1 of the paper. Make a version of this plot that is easier to read, perhaps by producing separate plots for different subtype/hypoventilation status.
 
 Reproduce the original plot:
 ```{R}
@@ -114,5 +115,50 @@ dmd_apnoea %>%
   theme(aspect.ratio=3/4)
 ```
 
- 2. Produce tables showing the mean and standard deviation of AHI for each disease subtype.
- 3. Make a histogram of the distribution of AHI
+2. Produce tables showing the mean and standard deviation of AHI for each disease subtype.
+
+```{R}
+# Table of mean and standard deviation of AHI for each disease subtype
+dmd_apnoea %>%
+  group_by(type) %>%
+  summarise(mean_AHI = sprintf("%.2f", mean(ahi, na.rm = TRUE)),
+            sd_ahi = sprintf("%.2f", sd(ahi, na.rm = TRUE))) %>%
+  datatable()
+```
+
+
+3. Make a histogram of the distribution of AHI
+
+```{R}
+# Histogram of AHI
+dmd_apnoea %>%
+  ggplot(aes(x = ahi)) +
+  geom_histogram(binwidth = 5, fill = "cornflowerblue", colour = "black") +
+  labs(title = "Histogram of AHI",
+       x = "AHI (Events/hr)",
+       y = "Frequency") +
+  theme_minimal(base_size = 15) +
+  theme(aspect.ratio=3/4)
+```
+
+III. Linear model for AHI
+4. Fit a linear model ahi ~ ageyears + type and evaluate the residual plots. Comment on your conclusions.
+
+```{R}
+# Fit a linear model ahi ~ ageyears + type
+lm_ahi <- lm(ahi ~ ageyears + type, data = dmd_apnoea)
+summary(lm_ahi)
+
+# Residual plots
+par(mfrow = c(2, 2))
+plot(lm_ahi)
+```
+
+Comment on your conclusions:
+- From model summary, ...
+- From Residual vs Fitted Values plot, ...
+- From Q-Q plot of standard residuals, ...
+- From Scale-Location plot, ...
+- From Residuals vs Leverage plot, ...
+
+5. Assuming a linear model is reasonable, see whether there is evidence for differences in relationship beween ahi and age in different diagnoses.
