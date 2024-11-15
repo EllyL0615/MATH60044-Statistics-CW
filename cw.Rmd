@@ -1,0 +1,118 @@
+Load required libraries
+```{R}
+library(tidyverse)
+library(ggplot2)
+```
+
+
+Reading the data
+```{R}
+dmd_apnoea <- read_table("dmd-apnoea.txt")
+```
+
+
+ Exploratory Data Analysis
+ 1. Verify that you can reproduce Figure 1 of the paper. Make a version of this plot that is easier to read,
+ perhaps by producing separate plots for different subtype/hypoventilation status.
+
+Reproduce the original plot:
+```{R}
+# Plot the data: Scatter plot of age versus AHI
+dmd_apnoea %>%
+  filter(hypo != -99) %>% 
+  mutate(hypo = as.factor(hypo)) %>%
+  ggplot(
+    aes(x = ageyears,
+        y = ahi,
+        shape = type,
+        colour = hypo)) +
+  geom_point(size = 1, stroke = 2) +
+  labs(title = "Figure 1: Scatter plot of age versus AHI",
+       x = "Age (Yrs)",
+       y = "AHI (Events/hr)") +
+  # shape: 5 for BMD, 0 for CMD, 1 for DM, 4 for DMD, 3 for LGMD
+  scale_shape_manual(values = c(5, 0, 1, 4, 3)) +
+  # colour: blue for 0, red for 1
+  scale_colour_manual(values = c("cornflowerblue", "brown3")) +
+  theme_minimal(base_size = 15) +
+  theme(aspect.ratio=3/4)
+```
+
+Easier to read version:
+1) Separate plots for different subtypes
+```{R}
+# Plot the data: Scatter plots of age versus AHI
+# Separate plots for BMD, CMD, DM, DMD, LGMD
+dmd_apnoea %>%
+  filter(hypo != -99) %>% 
+  mutate(hypo = as.factor(hypo)) %>%
+  ggplot(
+    aes(x = ageyears,
+        y = ahi,
+        shape = type,
+        colour = hypo)) +
+  geom_point(size = 1, stroke = 1) +
+  labs(title = "Scatter plot of age versus AHI\nfor different subtypes",
+       x = "Age (Yrs)",
+       y = "AHI (Events/hr)") +
+  facet_wrap(~type) +
+  # shape: 5 for BMD, 0 for CMD, 1 for DM, 4 for DMD, 3 for LGMD
+  scale_shape_manual(values = c(5, 0, 1, 4, 3)) +
+  # colour: blue for 0, red for 1
+  scale_colour_manual(values = c("cornflowerblue", "brown3")) +
+  theme_minimal(base_size = 14) +
+  theme(aspect.ratio=3/4)
+```
+
+2) Separate plots for different hypoventilation status
+```{R}
+# Plot the data: Scatter plots of age versus AHI
+# separate plots for hypo = 1 and hypo = 0
+dmd_apnoea %>%
+  filter(hypo != -99) %>% 
+  mutate(hypo = as.factor(hypo)) %>%
+  ggplot(
+    aes(x = ageyears,
+        y = ahi,
+        shape = type,
+        colour = hypo)) +
+  geom_point(size = 1, stroke = 1) +
+  labs(title = "Scatter plot of age versus AHI\nfor different hypoventilation status",
+       x = "Age (Yrs)",
+       y = "AHI (Events/hr)") +
+  facet_wrap(~hypo) +
+  # shape: 5 for BMD, 0 for CMD, 1 for DM, 4 for DMD, 3 for LGMD
+  scale_shape_manual(values = c(5, 0, 1, 4, 3)) +
+  # colour: blue for 0, red for 1
+  scale_colour_manual(values = c("cornflowerblue", "brown3")) +
+  theme_minimal(base_size = 14) +
+  theme(aspect.ratio=3/4)
+```
+
+3) Separate plots for different subtypes and hypoventilation status
+```{R}
+# Plot the data: Scatter plots of age versus AHI
+# separate plots for hypo = 1 and hypo = 0
+dmd_apnoea %>%
+  filter(hypo != -99) %>% 
+  mutate(hypo = as.factor(hypo)) %>%
+  ggplot(
+    aes(x = ageyears,
+        y = ahi,
+        shape = type,
+        colour = hypo)) +
+  geom_point(size = 1, stroke = 1) +
+  labs(title = "Scatter plot of age versus AHI\nfor different subtypes and hypoventilation status",
+       x = "Age (Yrs)",
+       y = "AHI (Events/hr)") +
+  facet_grid(type ~ hypo) +
+  # shape: 5 for BMD, 0 for CMD, 1 for DM, 4 for DMD, 3 for LGMD
+  scale_shape_manual(values = c(5, 0, 1, 4, 3)) +
+  # colour: blue for 0, red for 1
+  scale_colour_manual(values = c("cornflowerblue", "brown3")) +
+  theme_minimal(base_size = 11) +
+  theme(aspect.ratio=3/4)
+```
+
+ 2. Produce tables showing the mean and standard deviation of AHI for each disease subtype.
+ 3. Make a histogram of the distribution of AHI
