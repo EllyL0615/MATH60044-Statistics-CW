@@ -166,8 +166,10 @@ summary(lm_ahi)
 
 
 # Residual plots
-par(mfrow = c(2, 2))
+par(mfrow = c(2, 2), pin = c(3, 2.25))
+# 3:4 aspect ratio
 plot(lm_ahi)
+
 ```
 Comment on your conclusions:
 - Residual vs Fitted Values plot: The non-horizontal smoother line suggests the possible presence of non-linear relationships between predictors (age and type) and the response variable (AHI) that are omitted by the model.
@@ -212,14 +214,114 @@ anova(lm_ahi, lm_ahi_inter)
 # 1     98 6520.5
 # 2     94 6307.1  4    213.39 0.7951 0.5313
 ```
-Comments:
-- t-values for the interaction terms are not significant
-- p-value for the ANOVA test is not significant
-- Suggesting that there is no evidence for differences in the relationship between AHI and age in different diagnoses.
+Goodness of fit and ANOVA test not significant:
+- t-values for the ageyears:type interaction terms are not significant.
+- Adjusted R-squared for the model with interaction terms is lower than the model without interaction terms.
+- (Ignore Multiple R-squared as it increases with the addition of more predictors, even if they are not significant.)
+- F-statistic for the ANOVA test is not significant.
+Suggesting that there is no evidence for differences in the relationship between AHI and age in different diagnoses.
 
 
 IV. Generalized linear model for AHI
-6. Group together observations into approx 5-year age groups. Make a plot of the group means against group variances, using a log scales for both axes. By fitting a suitable linear model to the grouped data, explain why the data are consistent with a variance function of the form V (µ) = µ2.
+6. Group together observations into approx 5-year age groups. Make a plot of the group means against group variances, using a log scales for both axes. By fitting a suitable linear model to the grouped data, explain why the data are consistent with a variance function of the form V (µ) = µ^2.
+```{R}
+# Group data into 5-year age groups & Calculate group means and variances
+dmd_apnoea_grouped <- dmd_apnoea %>%
+  mutate(age_group = floor(ageyears / 5) * 5) %>%
+  group_by(age_group) %>%
+  summarise(
+    mean_ahi = mean(ahi),
+    var_ahi = var(ahi)
+  )
+
+# Plot group means vs. group variances
+dmd_apnoea_grouped %>%
+  ggplot(aes(x = mean_ahi, y = var_ahi)) +
+  geom_point() +
+  scale_x_log10() + scale_y_log10() +
+  geom_smooth(method = "lm", colour = "darkred") +
+  labs(title = "Log Group Means vs. Log Group Variances",
+       x = "Log Group Mean AHI",
+       y = "Log Group Variance AHI") +
+  theme_minimal(base_size = 15) +
+  theme(aspect.ratio=3/4)
+
+# Fit a linear model to the grouped data
+lm_grouped <- lm(log(var_ahi) ~ log(mean_ahi), data = dmd_apnoea_grouped)
+summary(lm_grouped)
+
+# Residuals:
+#     Min      1Q  Median      3Q     Max
+# -6.2094 -0.0483  0.5589  0.9554  1.5640
+
+# Coefficients:
+#               Estimate Std. Error t value Pr(>|t|)  
+# (Intercept)     -1.134      2.359  -0.481   0.6410
+# log(mean_ahi)    2.122      1.071   1.980   0.0758 .
+# ---
+# Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+# Residual standard error: 2.185 on 10 degrees of freedom
+# Multiple R-squared:  0.2817,    Adjusted R-squared:  0.2099 
+# F-statistic: 3.922 on 1 and 10 DF,  p-value: 0.07581
+
+```
+Goodness of fit not ideal:
+- t-value for the log(mean_ahi) coefficient is significant within 10% level.
+- Adjusted R-squared is not high.
+- F-statistic is significant within 10% level.
+If the data is consistent with the model, it suggests that V(μ) = e^(-1.13) * μ^2.12.
+
+Try to improve the goodness of fit by merging the last age group with the previous one, as it has only 3 observations and is an outlier.
+```{R}
+# Group data into 5-year age groups & Calculate group means and variances
+dmd_apnoea_grouped_merged <- dmd_apnoea %>%
+  mutate(age_group = ifelse(ageyears < 55, floor(ageyears / 5) * 5, 55)) %>%
+  group_by(age_group) %>%
+  summarise(
+    mean_ahi = mean(ahi),
+    var_ahi = var(ahi)
+  )
+
+# Plot group means vs. group variances
+dmd_apnoea_grouped_merged %>%
+  ggplot(aes(x = mean_ahi, y = var_ahi)) +
+  geom_point() +
+  scale_x_log10() + scale_y_log10() +
+  geom_smooth(method = "lm", colour = "cornflowerblue") +
+  labs(title = "Log Group Means vs. Log Group Variances",
+       x = "Log Group Mean AHI",
+       y = "Log Group Variance AHI") +
+  theme_minimal(base_size = 15) +
+  theme(aspect.ratio=3/4)
+
+# Fit a linear model to the grouped data
+lm_grouped_merged <- lm(log(var_ahi) ~ log(mean_ahi), data = dmd_apnoea_grouped_merged)
+summary(lm_grouped_merged)
+
+# Residuals:
+#     Min      1Q  Median      3Q     Max 
+# -1.3750 -0.2411  0.1453  0.3711  0.8405
+
+# Coefficients:
+#               Estimate Std. Error t value Pr(>|t|)
+# (Intercept)     0.5795     0.8225   0.705  0.49890
+# log(mean_ahi)   1.5926     0.3741   4.257  0.00212 **
+# ---
+# Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+# Residual standard error: 0.7192 on 9 degrees of freedom
+# Multiple R-squared:  0.6682,    Adjusted R-squared:  0.6313
+# F-statistic: 18.12 on 1 and 9 DF,  p-value: 0.002121
+
+```
+Goodness of fit improved:
+- t-value for the log(mean_ahi) coefficient is more significant within 1% level after merging the last two age group.
+- Adjusted R-squared is higher after merging the last two age group.
+- F-statistic is more significant within 1% level after merging the last two age group.
+Suggesting data is consistent with the model, V(μ) = e^(0.58) * μ^1.59 ≈ μ^2.
+From the plot, we can oberve that e^(0.58) * μ^1.59 is closer to μ^2 than e^(-1.13) * μ^2.12, in the range of group means and variances in the data, further supporting the hypothesis that the model with merged age grouped.
+
 
 7. (*) Explore models for the relationship between age and AHI that better respect the properties of the data. Give a bootstrap confidence interval for the age effect in your preferred model. You may also wish to investigate e.g. differences by sex.
     The mean-variance relationship suggests using a Gamma GLM, although this is incompatible with the presence of zeros in the data. One approach could be to fit a quasi-GLM model for AHI, using only non-zero AHI observations. A hurdle model is another possibility.
