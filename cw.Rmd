@@ -116,7 +116,6 @@ dmd_apnoea %>%
 ```
 
 2. Produce tables showing the mean and standard deviation of AHI for each disease subtype.
-
 ```{R}
 # Table of mean and standard deviation of AHI for each disease subtype
 dmd_apnoea %>%
@@ -126,9 +125,7 @@ dmd_apnoea %>%
   datatable()
 ```
 
-
 3. Make a histogram of the distribution of AHI
-
 ```{R}
 # Histogram of AHI
 dmd_apnoea %>%
@@ -141,24 +138,93 @@ dmd_apnoea %>%
   theme(aspect.ratio=3/4)
 ```
 
+
 III. Linear model for AHI
 4. Fit a linear model ahi ~ ageyears + type and evaluate the residual plots. Comment on your conclusions.
-
 ```{R}
 # Fit a linear model ahi ~ ageyears + type
 lm_ahi <- lm(ahi ~ ageyears + type, data = dmd_apnoea)
 summary(lm_ahi)
 
+# Residuals:
+#     Min      1Q  Median      3Q     Max
+# -16.512  -5.076  -1.050   3.543  41.347
+
+# Coefficients:
+#              Estimate Std. Error t value Pr(>|t|)
+# (Intercept)  16.49514    3.47593   4.746 7.09e-06 ***
+# ageyears      0.15040    0.05326   2.824 0.005745 **
+# typeCMD     -13.45609    4.20457  -3.200 0.001850 **
+# typeDM      -13.18742    3.37949  -3.902 0.000175 ***
+# typeLGMD    -14.80572    3.82503  -3.871 0.000196 ***
+# ---
+# Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+# Residual standard error: 8.157 on 98 degrees of freedom
+# Multiple R-squared:  0.2253,    Adjusted R-squared:  0.1858
+# F-statistic:   5.7 on 5 and 98 DF,  p-value: 0.0001171
+
+
 # Residual plots
 par(mfrow = c(2, 2))
 plot(lm_ahi)
 ```
-
 Comment on your conclusions:
-- From model summary, ...
-- From Residual vs Fitted Values plot, ...
-- From Q-Q plot of standard residuals, ...
-- From Scale-Location plot, ...
-- From Residuals vs Leverage plot, ...
+- Residual vs Fitted Values plot: The non-horizontal smoother line suggests the possible presence of non-linear relationships between predictors (age and type) and the response variable (AHI) that are omitted by the model.
+- Q-Q plot of standard residuals: The residuals exhibit tails on the same side on the line, indecating skewness in the residuals.
+- Scale-Location plot: The upward trend in the smoother line indicates heteroscedasticity, violating the homoscedasticity assumption of linear regression.
+- Residuals vs Leverage plot: While a few points display high leverage or high residuals, none exhibit high Cook's distance, suggesting there are no influential points in the dataset.
 
 5. Assuming a linear model is reasonable, see whether there is evidence for differences in relationship beween ahi and age in different diagnoses.
+```{R}
+# Fit a linear model with interaction term: ahi ~ ageyears * type
+lm_ahi_inter <- lm(ahi ~ ageyears * type, data = dmd_apnoea)
+summary(lm_ahi_inter)
+
+# Residuals:
+#     Min      1Q  Median      3Q     Max
+# -13.964  -4.630  -1.235   3.198  41.267
+
+# Coefficients:
+#                    Estimate Std. Error t value Pr(>|t|)  
+# (Intercept)        11.68235    5.01843   2.328   0.0221 *
+# ageyears            0.31006    0.13103   2.366   0.0200 *
+# typeCMD           -13.57024   10.98772  -1.235   0.2199
+# typeDM             -7.33746    5.44509  -1.348   0.1810
+# typeDMD            -9.26606    6.41475  -1.444   0.1519
+# typeLGMD           -8.19279    6.56712  -1.248   0.2153
+# ageyears:typeCMD    0.20380    0.70467   0.289   0.7731
+# ageyears:typeDM    -0.20342    0.14794  -1.375   0.1724
+# ageyears:typeDMD    0.07569    0.29999   0.252   0.8014
+# ageyears:typeLGMD  -0.22281    0.18137  -1.228   0.2223
+# ---
+# Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+# Residual standard error: 8.191 on 94 degrees of freedom
+# Multiple R-squared:  0.2507,    Adjusted R-squared:  0.1789 
+# F-statistic: 3.494 on 9 and 94 DF,  p-value: 0.0009178
+
+
+# ANOVA test for interaction term
+anova(lm_ahi, lm_ahi_inter)
+
+#   Res.Df    RSS Df Sum of Sq      F Pr(>F)
+# 1     98 6520.5
+# 2     94 6307.1  4    213.39 0.7951 0.5313
+```
+Comments:
+- t-values for the interaction terms are not significant
+- p-value for the ANOVA test comparing the models with and without the interaction term is not significant
+- Suggesting that there is no evidence for differences in the relationship between AHI and age in different diagnoses.
+
+
+IV. Generalized linear model for AHI
+6. Group together observations into approx 5-year age groups. Make a plot of the group means against group variances, using a log scales for both axes. By fitting a suitable linear model to the grouped data, explain why the data are consistent with a variance function of the form V (µ) = µ2.
+
+7. (*) Explore models for the relationship between age and AHI that better respect the properties of the data. Give a bootstrap confidence interval for the age effect in your preferred model. You may also wish to investigate e.g. differences by sex.
+    The mean-variance relationship suggests using a Gamma GLM, although this is incompatible with the presence of zeros in the data. One approach could be to fit a quasi-GLM model for AHI, using only non-zero AHI observations. A hurdle model is another possibility.
+
+
+V. Binomial GLM for severe sleep apnoea.
+8. A patient is defined to have severe sleep apnoea if their AHI is greater than 10 events per hour.
+    Determine the effect on the odds of sleep apnoea of a 10 year increase in age, with a confidence interval.
