@@ -214,7 +214,7 @@ anova(lm_ahi, lm_ahi_inter)
 ```
 Comments:
 - t-values for the interaction terms are not significant
-- p-value for the ANOVA test comparing the models with and without the interaction term is not significant
+- p-value for the ANOVA test is not significant
 - Suggesting that there is no evidence for differences in the relationship between AHI and age in different diagnoses.
 
 
