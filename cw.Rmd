@@ -3,6 +3,7 @@ Load required libraries
 library(tidyverse)
 library(ggplot2)
 library(DT)
+library(glmmTMB)
 ```
 
 
@@ -143,8 +144,8 @@ III. Linear model for AHI
 4. Fit a linear model ahi ~ ageyears + type and evaluate the residual plots. Comment on your conclusions.
 ```{R}
 # Fit a linear model ahi ~ ageyears + type
-lm_ahi <- lm(ahi ~ ageyears + type, data = dmd_apnoea)
-summary(lm_ahi)
+lm <- lm(ahi ~ ageyears + type, data = dmd_apnoea)
+summary(lm)
 
 # Residuals:
 #     Min      1Q  Median      3Q     Max
@@ -168,20 +169,29 @@ summary(lm_ahi)
 # Residual plots
 par(mfrow = c(2, 2), pin = c(3, 2.25))
 # 3:4 aspect ratio
-plot(lm_ahi)
+plot(lm)
 
 ```
 Comment on your conclusions:
+
+Goodness of fit with signiticant t and F but low R-squared:
+- t-values for all predicters are significant within 1% level.
+- Adjusted R-squared is low.
+- F-statistic is significant within 0.1% level.
+Suggesting that, while the predictors are relevant, there may be nonlinear relationships, missing predictors, or interactions between predictors that are not captured by the model.
+
+Residual plots:
 - Residual vs Fitted Values plot: The non-horizontal smoother line suggests the possible presence of non-linear relationships between predictors (age and type) and the response variable (AHI) that are omitted by the model.
 - Q-Q plot of standard residuals: The residuals exhibit tails on the same side on the line, indecating skewness in the residuals.
 - Scale-Location plot: The upward trend in the smoother line indicates heteroscedasticity, violating the homoscedasticity assumption of linear regression.
 - Residuals vs Leverage plot: While a few points display high leverage or high residuals, none exhibit high Cook's distance, suggesting there are no influential points in the dataset.
 
+
 5. Assuming a linear model is reasonable, see whether there is evidence for differences in relationship beween ahi and age in different diagnoses.
 ```{R}
 # Fit a linear model with interaction term: ahi ~ ageyears * type
-lm_ahi_inter <- lm(ahi ~ ageyears * type, data = dmd_apnoea)
-summary(lm_ahi_inter)
+lm_inter <- lm(ahi ~ ageyears * type, data = dmd_apnoea)
+summary(lm_inter)
 
 # Residuals:
 #     Min      1Q  Median      3Q     Max
@@ -208,7 +218,7 @@ summary(lm_ahi_inter)
 
 
 # ANOVA test for interaction term
-anova(lm_ahi, lm_ahi_inter)
+anova(lm, lm_inter)
 
 #   Res.Df    RSS Df Sum of Sq      F Pr(>F)
 # 1     98 6520.5
@@ -218,7 +228,7 @@ Goodness of fit and ANOVA test not significant:
 - t-values for the ageyears:type interaction terms are not significant.
 - Adjusted R-squared for the model with interaction terms is lower than the model without interaction terms.
 - (Ignore Multiple R-squared as it increases with the addition of more predictors, even if they are not significant.)
-- F-statistic for the ANOVA test is not significant.
+- ANOVA test F-statistic is not significant.
 Suggesting that there is no evidence for differences in the relationship between AHI and age in different diagnoses.
 
 
@@ -267,9 +277,10 @@ summary(lm_grouped)
 
 ```
 Goodness of fit not ideal:
-- t-value for the log(mean_ahi) coefficient is significant within 10% level.
+- t-value for the log(mean_ahi) coefficient is not significant / only significant within 10% level.
 - Adjusted R-squared is not high.
-- F-statistic is significant within 10% level.
+- F-statistic is not significant / only significant within 10% level.
+Suggesting the model may not be the best fit for the data
 If the data is consistent with the model, it suggests that V(μ) = e^(-1.13) * μ^2.12.
 
 Try to improve the goodness of fit by merging the last age group with the previous one, as it has only 3 observations and is an outlier.
@@ -315,17 +326,133 @@ summary(lm_grouped_merged)
 # F-statistic: 18.12 on 1 and 9 DF,  p-value: 0.002121
 
 ```
-Goodness of fit improved:
-- t-value for the log(mean_ahi) coefficient is more significant within 1% level after merging the last two age group.
-- Adjusted R-squared is higher after merging the last two age group.
-- F-statistic is more significant within 1% level after merging the last two age group.
-Suggesting data is consistent with the model, V(μ) = e^(0.58) * μ^1.59 ≈ μ^2.
-From the plot, we can oberve that e^(0.58) * μ^1.59 is closer to μ^2 than e^(-1.13) * μ^2.12, in the range of group means and variances in the data, further supporting the hypothesis that the model with merged age grouped.
+Goodness of fit improved after merging the last two age group:
+- t-value for the log(mean_ahi) coefficient is more significant within 1% level.
+- Adjusted R-squared is higher.
+- F-statistic is more significant within 1% level.
+Suggesting the model is a better fit for the data, V(μ) = e^(0.58) * μ^1.59 ≈ μ^2.
+From the plot [insert plot], we can oberve that e^(0.58) * μ^1.59 is closer to μ^2 than e^(-1.13) * μ^2.12, in the range of group means and variances in the data, further supporting the hypothesis that the model with merged age grouped.
 
 
 7. (*) Explore models for the relationship between age and AHI that better respect the properties of the data. Give a bootstrap confidence interval for the age effect in your preferred model. You may also wish to investigate e.g. differences by sex.
     The mean-variance relationship suggests using a Gamma GLM, although this is incompatible with the presence of zeros in the data. One approach could be to fit a quasi-GLM model for AHI, using only non-zero AHI observations. A hurdle model is another possibility.
 
+Model: Gamma GLM could be appropriate as it aligns with the variance being proportional to mean squared for AHI.
+- Data : Only use positive AHI observations, as non-positive values of AHI are not allowed for Gamma distribution.
+- Link choice: While the inverse link is canonical for the Gamma distribution, I would choose the log link as it ensures predicted values remain positive and are easier to interpret.
+```{R}
+# Fit a Gamma GLM model for positive AHI
+dmd_apnoea_pos <- dmd_apnoea %>% filter(ahi > 0)
+
+gamma_log <- glm(ahi ~ ageyears, data = dmd_apnoea_pos, family = Gamma(link = "log"))
+summary(gamma_log)
+
+# Coefficients:
+#             Estimate Std. Error t value Pr(>|t|)
+# (Intercept)  1.69676    0.17099   9.923  < 2e-16 ***
+# ageyears     0.01838    0.00651   2.823  0.00578 **
+# ---
+# Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+# (Dispersion parameter for Gamma family taken to be 1.153416)
+
+#     Null deviance: 127.83  on 98  degrees of freedom
+# Residual deviance: 118.97  on 97  degrees of freedom
+# AIC: 615.35
+
+# Number of Fisher Scoring iterations: 7
+```
+Goodness of fit:
+- t-value for the ageyears coefficient is significant within 1% level.
+- Residual deviance is slightly lower than the null deviance.
+- AIC is high.
+Suggesting that, while the age predictor is relevant, the model may not be the best fit for the data.
+This may be due to the incompatibility of the Gamma GLM with the presence of zeros in the data.
+
+Try to improve the model by fitting a quasi-GLM model.
+Model: Quasi-GLM could be appropriate as it allows negative values.
+- Data: Only use positive AHI observations.
+```{R}
+quasigamma_log <- glm(ahi ~ ageyears, data = dmd_apnoea, family = quasi(link = "log", variance = "mu^2"))
+summary(quasigamma_log)
+
+# Coefficients:
+#             Estimate Std. Error t value Pr(>|t|)
+# (Intercept) 1.641435   0.176552   9.297 2.92e-15 ***
+# ageyears    0.018675   0.006794   2.749  0.00707 **
+# ---
+# Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+# (Dispersion parameter for quasi family taken to be 1.263555)
+
+#     Null deviance: 138.74  on 103  degrees of freedom
+# Residual deviance: 129.16  on 102  degrees of freedom
+# AIC: NA
+
+# Number of Fisher Scoring iterations: 7
+
+```
+Goodness of fit:
+- t-value for the ageyears coefficient is slightly less significant than Gamma GLM.
+- Residual deviance is slightly lower than the null deviance, but both slightly higher than those of Gamma GLM.
+Suggesting the quasiGamma GLM does not fit better than Gamma GLM.
+But the model more accurately reflecting the data since it includes the full dataset.
+
+Model: Hurdle Gamma GLM.
+```{R}
+logit_ahi <- ifelse(dmd_apnoea$ahi > 0, 1, 0)
+dmd_apnoea_logit <- data.frame(dmd_apnoea, logit_ahi)
+hurdle_gamma1 <- glm(logit_ahi ~ ageyears, data = dmd_apnoea_logit, family = binomial)
+hurdle_gamma2 <- glm(ahi ~ ageyears, data = subset(dmd_apnoea, ahi > 0), family = Gamma(link = "log"))
+summary(hurdle_gamma1)
+
+# Coefficients:
+#             Estimate Std. Error z value Pr(>|z|)
+# (Intercept) 2.870588   0.732452   3.919 8.89e-05 ***
+# ageyears    0.005864   0.030092   0.195    0.846
+# ---
+# Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+# (Dispersion parameter for binomial family taken to be 1)
+
+#     Null deviance: 40.105  on 103  degrees of freedom
+# Residual deviance: 40.066  on 102  degrees of freedom
+# AIC: 44.066
+
+summary(hurdle_gamma2)
+# same as Gamma GLM
+```
+
+Model: Zero-inflated Gamma GLM.
+```{R}
+zigamma_log <- glmmTMB(ahi ~ ageyears, data = dmd_apnoea, family = ziGamma(link = "log"), ziformula = ~ ageyears)
+summary(zigamma_log)
+
+# Family: Gamma  ( log )
+# Formula:          ahi ~ ageyears
+# Zero inflation:       ~ageyears
+# Data: dmd_apnoea
+
+#      AIC      BIC   logLik deviance df.resid
+#    658.1    671.3   -324.0    648.1       99
+
+
+# Dispersion estimate for Gamma family (sigma^2): 1.04
+
+# Conditional model:
+#             Estimate Std. Error z value Pr(>|z|)
+# (Intercept) 1.696759   0.170189   9.970  < 2e-16 ***
+# ageyears    0.018377   0.006675   2.753  0.00591 **
+# ---
+# Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+# Zero-inflation model:
+#              Estimate Std. Error z value Pr(>|z|)    
+# (Intercept) -2.870588   0.732450  -3.919 8.89e-05 ***
+# ageyears    -0.005864   0.030092  -0.195    0.846
+# ---
+# Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+```
 
 V. Binomial GLM for severe sleep apnoea.
 8. A patient is defined to have severe sleep apnoea if their AHI is greater than 10 events per hour.
