@@ -341,6 +341,7 @@ Since the source code for in R is inconsistant in evaluating deviance and AIC fo
 gamma_gof <- function(model, p) {
   y = dmd_apnoea$ahi
   mu = predict(model, newdata = dmd_apnoea, type = "response")
+  weights <- rep.int(1, length(y))
   wtdmu = sum(weights * y)/sum(weights)
   dev.resids = function(y, mu, wt) {
     y1 = y + (y == 0)/(10*exp(1))
@@ -356,7 +357,6 @@ gamma_gof <- function(model, p) {
     
   }  # Gamma(link = "inverse")$dev.resids is WRONG
 
-  weights <- rep.int(1, length(y))
   nulldev = sum(dev.resids(y, wtdmu, weights))
 
   dev = sum(dev.resids(y, mu, weights))
@@ -386,32 +386,32 @@ gamma_gof(tweedie_a, p)
 
 Model: Gamma GLM could be appropriate as it aligns with the variance being proportional to mean squared for AHI.
 - Data : Only use positive AHI observations, as non-positive values of AHI are not allowed for Gamma distribution.
-- Link: Inverse link is canonical for the Gamma distribution (P.S. log link is another good option as it ensures predicted values remain positive and are easier to interpret.)
+- Link: Inverse link is canonical for the Gamma distribution, but here we use log link as it ensures predicted values remain positive and are easier to interpret.
 ```{R}
-gamma_a <- glm(ahi ~ ageyears, data = subset(dmd_apnoea, ahi > 0), family = Gamma(link = "inverse"))
+gamma_a <- glm(ahi ~ ageyears, data = subset(dmd_apnoea, ahi > 0), family = Gamma(link = "log"))
 summary(gamma_a)
 # Coefficients:
-#               Estimate Std. Error t value Pr(>|t|)
-# (Intercept)  0.1608796  0.0219398   7.333 6.82e-11 ***
-# ageyears    -0.0015808  0.0005526  -2.861  0.00518 **
+#             Estimate Std. Error t value Pr(>|t|)
+# (Intercept)  1.69676    0.17099   9.923  < 2e-16 ***
+# ageyears     0.01838    0.00651   2.823  0.00578 **
 # ---
 # Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-# (Dispersion parameter for Gamma family taken to be 1.152831)
+# (Dispersion parameter for Gamma family taken to be 1.153416)
 
-#     Null deviance: (127.8319) [171.7682] on 98  degrees of freedom
-# Residual deviance: (120.3515) [163.7285] on 97  degrees of freedom
-# AIC: (616.7018) [647.327] [0.04680549]
+#     Null deviance: 127.83 [171.7682] on 98  degrees of freedom
+# Residual deviance: 118.97 [162.4354] on 97  degrees of freedom
+# AIC: 615.35 [646.1518] [0.05433374]
 
-# Number of Fisher Scoring iterations: 6
+# Number of Fisher Scoring iterations: 7
 
-plot(gamma_a)
+#plot(gamma_a)
 gamma_gof(gamma_a, 2)
 ```
 One problem is that the model does not include the zeros in the data, fail to reflect the full dataset.
 Goodness of fit:
 - t-value for the ageyears coefficient is significant within 1% level.
-- Residual deviance is only slightly lower than the null deviance, but both are high.
+- Residual deviance is only slightly lower than the null deviance.
 - AIC is high.
 Suggesting the age predictor is relevant, but the model may not be the best fit for the data due to missing other relevant predictors.
 
@@ -426,19 +426,19 @@ Model: Quasi-GLM could be appropriate as it allows non-positive values.
 quasigamma_a <- glm(ahi ~ ageyears, data = dmd_apnoea, family = quasi(link = "log", variance = "mu^2"))
 summary(quasigamma_a)
 # Coefficients:
-#               Estimate Std. Error t value Pr(>|t|)
-# (Intercept)  0.1704868  0.0236259   7.216 9.75e-11 ***
-# ageyears    -0.0017187  0.0005919  -2.904  0.00452 **
+#             Estimate Std. Error t value Pr(>|t|)    
+# (Intercept) 1.641435   0.176552   9.297 2.92e-15 ***
+# ageyears    0.018675   0.006794   2.749  0.00707 **
 # ---
 # Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 
-# (Dispersion parameter for quasi family taken to be 1.264399)
+# (Dispersion parameter for quasi family taken to be 1.263555)
 
-#     Null deviance: [171.7682] on 103  degrees of freedom
-# Residual deviance: [162.1849] on 102  degrees of freedom
-# AIC: NA (616.1998) [643.6951] [0.05579233]
+#     Null deviance: 138.74 [171.7682] on 103  degrees of freedom
+# Residual deviance: 129.16 [162.1849] on 102  degrees of freedom
+# AIC: NA [643.6951] [0.05579233]
 
-# Number of Fisher Scoring iterations: 6
+# Number of Fisher Scoring iterations: 7
 
 plot(quasigamma_a)
 gamma_gof(quasigamma_a, 2)
@@ -458,7 +458,7 @@ Model: Hurdle Gamma GLM could be appropriate as it not only allows non-positive 
 logit_ahi <- ifelse(dmd_apnoea$ahi > 0, 1, 0)
 dmd_apnoea_logit <- data.frame(dmd_apnoea, logit_ahi)
 hurdle_gamma_a1 <- glm(logit_ahi ~ ageyears, data = dmd_apnoea_logit, family = binomial(link = "logit"))
-hurdle_gamma_a2 <- glm(ahi ~ ageyears, data = subset(dmd_apnoea, ahi > 0), family = Gamma(link = "inverse"))
+hurdle_gamma_a2 <- glm(ahi ~ ageyears, data = subset(dmd_apnoea, ahi > 0), family = Gamma(link = "log"))
 
 summary(hurdle_gamma_a1)
 # Coefficients:
@@ -488,48 +488,7 @@ Goodness of fit:
   - Residual deviance is almost the same as the null deviance.
 Suggesting that the hurdle model does not fit the data well.
 
-(2) missing other relevant predictors.
-
-```{R}
-quasigamma_s <- glm(ahi ~ sex, data = dmd_apnoea, family = quasi(link = "inverse", variance = "mu^2"))
-summary(quasigamma_s)
-gamma_gof(quasigamma_s, 2)   # 171.7682 168.8274  642.7339  649.6235  0.01712091
-plot(quasigamma_s)
-```
-
-```{R}
-quasigamma_as <- glm(ahi ~ ageyears + sex, data = dmd_apnoea, family = quasi(link = "inverse", variance = "mu^2"))
-summary(quasigamma_as)
-gamma_gof(quasigamma_as, 2)   # 171.7682  159.8157  643.6096  0.06958532
-plot(quasigamma_as)
-anova(quasigamma_as, quasigamma_a)
-```
-
-```{R}
-quasigamma_t <- glm(ahi ~ type, data = dmd_apnoea, family = quasi(link = "inverse", variance = "mu^2"))
-summary(quasigamma_t)
-gamma_gof(quasigamma_t, 2)   # 171.7682  159.0682  646.9102  0.07393675
-plot(quasigamma_t)
-```
-
-
-```{R}
-quasigamma_at <- glm(ahi ~ ageyears + type, data = dmd_apnoea, family = quasi(link = "inverse", variance = "mu^2"))
-summary(quasigamma_at)
-gamma_gof(quasigamma_at, 2)   # 154.145  644.2782  644.2782  0.1025988
-plot(quasigamma_at)
-anova(quasigamma_at)
-```
-
-```{R}
-quasigamma_ast <- glm(ahi ~ ageyears + type + sex, data = dmd_apnoea, family = quasi(link = "inverse", variance = "mu^2"))
-summary(quasigamma_ast)
-gamma_gof(quasigamma_ast, 2)   # 171.7682  153.5586  645.7525  0.1060131
-plot(quasigamma_ast)
-anova(quasigamma_ast, quasigamma_a)
-```
-
-(3) mean-variance relationship.
+(2) mean-variance relationship.
 
 ```{R}
 library(mgcv)
@@ -543,7 +502,7 @@ gamma_gof(tweedie_a, 1.661)
 
 ```{R}
 # tweedie model
-p <- 2.0001
+p <- 1.6610
 tweedie_a <- glm(ahi ~ ageyears, data = dmd_apnoea, family = tweedie(var.power=p, link.power=0))
 summary(tweedie_a)
 plot(tweedie_a)
@@ -555,15 +514,69 @@ gamma_gof(tweedie_a, p)
 # 2.1220 : 154.5030  147.0411  639.9257  0.04829644
 ```
 
+Give a bootstrap confidence interval for the age effect in your preferred model.
+Preferred model: quasiGamma GL
 ```{R}
-tweedie_21 <- tweedie_a
+# Bootstrap 95% confidence interval for the age effect in the quasiGamma GLM model
+set.seed(42)
+coef_boot <- matrix(NA, nrow = 1000, ncol = 1)
+for (i in 1:1000) {
+  boot_idx <- sample(nrow(dmd_apnoea), replace = TRUE)
+  glm_boot <- glm(ahi ~ ageyears, data = dmd_apnoea[boot_idx, ], family = quasi(link = "log", variance = "mu^2"))
+  coef_boot[i, ] <- coef(glm_boot)["ageyears"]
+}
+# 95% confidence interval
+quantile(coef_boot, c(0.025, 0.975))
+#        2.5%       97.5%
+# 0.006245718 0.031137871
+qqnorm(coef_boot)
+```
+
+(3) missing other relevant predictors.
+```{R}
+quasigamma_s <- glm(ahi ~ sex, data = dmd_apnoea, family = quasi(link = "log", variance = "mu^2"))
+summary(quasigamma_s)
+gamma_gof(quasigamma_s, 2)   # 171.7682 168.8274  642.7339  649.6235  0.01712091
+plot(quasigamma_s)
 ```
 
 ```{R}
-anova(tweedie_15, tweedie_16, tweedie_2, tweedie_21)
+quasigamma_as <- glm(ahi ~ ageyears + sex, data = dmd_apnoea, family = quasi(link = "log", variance = "mu^2"))
+summary(quasigamma_as)
+gamma_gof(quasigamma_as, 2)   # 171.7682  159.8157  643.6096  0.06958532
+plot(quasigamma_as)
+anova(quasigamma_as, quasigamma_a)
+```
+
+```{R}
+quasigamma_t <- glm(ahi ~ type, data = dmd_apnoea, family = quasi(link = "log", variance = "mu^2"))
+summary(quasigamma_t)
+gamma_gof(quasigamma_t, 2)   # 171.7682  159.0682  646.9102  0.07393675
+plot(quasigamma_t)
+```
+
+
+```{R}
+quasigamma_at <- glm(ahi ~ ageyears + type, data = dmd_apnoea, family = quasi(link = "log", variance = "mu^2"))
+summary(quasigamma_at)
+gamma_gof(quasigamma_at, 2)   # 171.7682  151.7347  641.9658  0.1166311
+plot(quasigamma_at)
+anova(quasigamma_at)
+```
+
+```{R}
+quasigamma_ast <- glm(ahi ~ ageyears + type + sex, data = dmd_apnoea, family = quasi(link = "log", variance = "mu^2"))
+summary(quasigamma_ast)
+gamma_gof(quasigamma_ast, 2)   # 171.7682  150.6353  642.936  0.1230316
+plot(quasigamma_ast)
+AIC(quasigamma_ast, quasigamma_a)
 ```
 
 
 V. Binomial GLM for severe sleep apnoea.
 8. A patient is defined to have severe sleep apnoea if their AHI is greater than 10 events per hour.
     Determine the effect on the odds of sleep apnoea of a 10 year increase in age, with a confidence interval.
+```{R}
+
+
+```
