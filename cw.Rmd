@@ -518,10 +518,11 @@ Give a bootstrap confidence interval for the age effect in your preferred model.
 Preferred model: quasiGamma GL
 ```{R}
 # Bootstrap 95% confidence interval for the age effect in the quasiGamma GLM model
-set.seed(42)
-coef_boot <- matrix(NA, nrow = 1000, ncol = 1)
-for (i in 1:1000) {
-  boot_idx <- sample(nrow(dmd_apnoea), replace = TRUE)
+set.seed(123)
+n_boot <- 1000
+coef_boot <- matrix(NA, nrow = n_boot, ncol = 1)
+for (i in 1:n_boot) {
+  boot_idx <- sample(1:nrow(dmd_apnoea), replace = TRUE)
   glm_boot <- glm(ahi ~ ageyears, data = dmd_apnoea[boot_idx, ], family = quasi(link = "log", variance = "mu^2"))
   coef_boot[i, ] <- coef(glm_boot)["ageyears"]
 }
@@ -577,6 +578,34 @@ V. Binomial GLM for severe sleep apnoea.
 8. A patient is defined to have severe sleep apnoea if their AHI is greater than 10 events per hour.
     Determine the effect on the odds of sleep apnoea of a 10 year increase in age, with a confidence interval.
 ```{R}
+# Create a binary variable for severe sleep apnoea
+dmd_apnoea$severe_apnoea <- ifelse(dmd_apnoea$ahi > 10, 1, 0)
+# Fit a binomial GLM model for severe sleep apnoea *of a 10 year increase in age*
+binom_a <- glm(severe_apnoea ~ ageyears, data = dmd_apnoea, family = binomial(link = "logit"))
+summary(binom_a)
+# Coefficients:
+#             Estimate Std. Error z value Pr(>|z|)
+# (Intercept) -1.80684    0.38734  -4.665 3.09e-06 ***
+# ageyears     0.03434    0.01326   2.590   0.0096 ** 
+# ---
+# Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+# (Dispersion parameter for binomial family taken to be 1)
+
+#     Null deviance: 119.11  on 103  degrees of freedom
+# Residual deviance: 112.24  on 102  degrees of freedom
+# AIC: 116.24
+
+# Number of Fisher Scoring iterations: 4
+
+# Odds ratio for a 10 year increase in age
+exp(10 * coef(binom_a)["ageyears"])
+# ageyears
+# 1.409745
+# 95% confidence interval for the odds ratio
+exp(10 * confint(binom_a)["ageyears", ])
+#    2.5 %   97.5 % 
+# 1.091037 1.847164
 
 
 ```
