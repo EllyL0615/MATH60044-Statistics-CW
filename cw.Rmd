@@ -11,7 +11,6 @@ library(statmod)
 I. Reading the data
 ```{R}
 dmd_apnoea <- read_table("dmd-apnoea.txt")
-View(dmd_apnoea)
 ```
 
 
@@ -123,8 +122,44 @@ dmd_apnoea %>%
 dmd_apnoea %>%
   group_by(type) %>%
   summarise(mean_AHI = sprintf("%.2f", mean(ahi, na.rm = TRUE)),
-            sd_ahi = sprintf("%.2f", sd(ahi, na.rm = TRUE))) %>%
+            sd_AHI = sprintf("%.2f", sd(ahi, na.rm = TRUE))) %>%
   datatable()
+```
+
+```{R}
+# plot of mean and var of AHI for each disease subtype, loglog scale, fit a line
+dmd_apnoea %>%
+  group_by(type) %>%
+  summarise(mean_AHI = mean(ahi, na.rm = TRUE),
+            var_AHI = var(ahi, na.rm = TRUE)) %>%
+  filter(type != "BMD") %>%
+  ggplot(aes(x = mean_AHI, y = var_AHI)) +
+  geom_point() +
+  geom_smooth(method = "lm", colour = "darkred") +
+  scale_y_log10() +
+  labs(title = "Log Mean AHI vs. Log Variance AHI for each disease subtype",
+       x = "Mean AHI",
+       y = "Log Variance AHI") +
+  theme_minimal(base_size = 15) +
+  theme(aspect.ratio=3/4)
+```
+
+```{R}
+# 1 BMD      21.0    239.
+# 2 CMD       5.08    24.0
+# 3 DM        6.87    52.1
+# 4 DMD       7.80    85.4
+# 5 LGMD      5.98    32.5
+dat = dmd_apnoea %>%
+      group_by(type) %>%
+      filter(type != "BMD") %>%
+      summarise(mean_AHI = mean(ahi, na.rm = TRUE),
+                var_AHI = var(ahi, na.rm = TRUE))
+lm = lm(log(var_AHI) ~ mean_AHI, data = dat)
+summary(lm)
+par(mfrow = c(2, 2), pin = c(3, 2.25))    # 3:4 aspect ratio
+plot(lm)
+confint(lm, level = 0.95)
 ```
 
 3. Make a histogram of the distribution of AHI
@@ -132,7 +167,7 @@ dmd_apnoea %>%
 # Histogram of AHI
 dmd_apnoea %>%
   ggplot(aes(x = ahi)) +
-  geom_histogram(binwidth = 5, fill = "cornflowerblue", colour = "black") +
+  geom_histogram(binwidth = 3, fill = "cornflowerblue", colour = "black") +
   labs(title = "Histogram of AHI",
        x = "AHI (Events/hr)",
        y = "Frequency") +
@@ -145,8 +180,8 @@ III. Linear model for AHI
 4. Fit a linear model ahi ~ ageyears + type and evaluate the residual plots. Comment on your conclusions.
 ```{R}
 # Fit a linear model ahi ~ ageyears + type
-lm <- lm(ahi ~ ageyears + type, data = dmd_apnoea)
-summary(lm)
+lm_at <- lm(ahi ~ ageyears + type, data = dmd_apnoea)
+summary(lm_at)
 
 # Residuals:
 #     Min      1Q  Median      3Q     Max
@@ -158,6 +193,7 @@ summary(lm)
 # ageyears      0.15040    0.05326   2.824 0.005745 **
 # typeCMD     -13.45609    4.20457  -3.200 0.001850 **
 # typeDM      -13.18742    3.37949  -3.902 0.000175 ***
+# typeDMD     -10.79254    3.46389  -3.116 0.002407 ** 
 # typeLGMD    -14.80572    3.82503  -3.871 0.000196 ***
 # ---
 # Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
@@ -169,7 +205,7 @@ summary(lm)
 
 # Residual plots
 par(mfrow = c(2, 2), pin = c(3, 2.25))    # 3:4 aspect ratio
-plot(lm)
+plot(lm_at)
 
 ```
 Comment on your conclusions:
@@ -218,7 +254,7 @@ summary(lm_inter)
 
 
 # ANOVA test for interaction term
-anova(lm, lm_inter)
+anova(lm_at, lm_inter)
 
 #   Res.Df    RSS Df Sum of Sq      F Pr(>F)
 # 1     98 6520.5
@@ -234,6 +270,23 @@ Suggesting that there is no evidence for differences in the relationship between
 
 IV. Generalized linear model for AHI
 6. Group together observations into approx 5-year age groups. Make a plot of the group means against group variances, using a log scales for both axes. By fitting a suitable linear model to the grouped data, explain why the data are consistent with a variance function of the form V (µ) = µ^2.
+```{R}
+# Plot group means vs. group variances
+dmd_apnoea_grouped_merged %>%
+  ggplot(aes(x = mean_ahi, y = var_ahi)) +
+  geom_point() +
+  geom_smooth(method = "lm", colour = "darkred") +
+  labs(title = "Group Means vs. Log Group Variances",
+       x = "Group Mean AHI",
+       y = "Group Variance AHI") +
+  theme_minimal(base_size = 15) +
+  theme(aspect.ratio=3/4)
+lm_grouped0 <- lm(var_ahi ~ mean_ahi, data = dmd_apnoea_grouped_merged)
+plot(lm_grouped0)
+```
+
+
+
 ```{R}
 # Group data into 5-year age groups & Calculate group means and variances
 dmd_apnoea_grouped <- dmd_apnoea %>%
@@ -275,6 +328,7 @@ summary(lm_grouped)
 # F-statistic: 3.922 on 1 and 10 DF,  p-value: 0.07581
 
 plot(lm_grouped)
+confint(lm_grouped, level = 0.95)
 ```
 If the data is consistent with the model, it suggests that Var(μ) = e^(-1.13) * μ^2.12 ≈ e^(-1.13) * μ^2. Let φ = e^(-1.13) then V(μ) ≈ μ^2
 However, goodness of fit not very ideal:
@@ -325,63 +379,18 @@ summary(lm_grouped_merged)
 # F-statistic: 18.12 on 1 and 9 DF,  p-value: 0.002121
 
 plot(lm_grouped_merged)
+confint(lm_grouped_merged, level = 0.95)
 ```
 Goodness of fit improved after merging the last two age group:
 - t-value for the log(mean_ahi) coefficient is more significant within 1% level.
 - Adjusted R-squared is higher.
 - F-statistic is more significant within 1% level.
-Suggesting the model is a better fit for the data, Var(μ) = e^(0.58) * μ^1.59.
+Suggesting this model is a better fit for the data, Var(μ) = e^(0.58) * μ^1.59.
 
 
 7. (*) Explore models for the relationship between age and AHI that better respect the properties of the data. Give a bootstrap confidence interval for the age effect in your preferred model. You may also wish to investigate e.g. differences by sex.
     The mean-variance relationship suggests using a Gamma GLM, although this is incompatible with the presence of zeros in the data. One approach could be to fit a quasi-GLM model for AHI, using only non-zero AHI observations. A hurdle model is another possibility.
 
-Since the source code for in R is inconsistant in evaluating deviance and AIC for Gamma family, we first define our own function.
-```{R}
-gamma_gof <- function(model, p) {
-  y = dmd_apnoea$ahi
-  mu = predict(model, newdata = dmd_apnoea, type = "response")
-  weights <- rep.int(1, length(y))
-  wtdmu = sum(weights * y)/sum(weights)
-  dev.resids = function(y, mu, wt) {
-    y1 = y + (y == 0)/(10*exp(1))
-    theta <- ( y1^(1-p) - mu^(1-p) ) / (1-p)
-    if (p == 2) {
-      kappa <- log(y1/mu)
-      theta <- (y - mu)/mu
-    } else {
-      kappa <- ( y1^(2-p) - mu^(2-p) ) / (2-p)
-      theta <- y1 * ( y1^(1-p) - mu^(1-p) ) / (1-p)
-    }
-    2 * wt * (theta - kappa)
-    
-  }  # Gamma(link = "inverse")$dev.resids is WRONG
-
-  nulldev = sum(dev.resids(y, wtdmu, weights))
-
-  dev = sum(dev.resids(y, mu, weights))
-
-  disp = dev/sum(model$prior.weights)
-  p = model$rank
-  AIC = -2 * sum(dgamma(ifelse(y==0, 1, y), 1/disp, scale = mu * disp, log = TRUE)) + 2 + 2*p
-  # sourcode compute dev -> AIC -> logLik
-
-  pseudo_r2 <- 1 - dev/nulldev
-
-  result = list(
-    NullDeviance = nulldev,
-    ResidualDeviance = dev,
-    AIC = AIC,
-    pseudoR2 = pseudo_r2
-  )
-
-  return(result)
-
-  # dispersion = sum(model$weights * model$residuals^2)/ model$df.residual
-  # dispersion
-}
-gamma_gof(tweedie_a, p)
-```
 
 
 Model: Gamma GLM could be appropriate as it aligns with the variance being proportional to mean squared for AHI.
@@ -405,7 +414,7 @@ summary(gamma_a)
 
 # Number of Fisher Scoring iterations: 7
 
-#plot(gamma_a)
+plot(gamma_a)
 gamma_gof(gamma_a, 2)
 ```
 One problem is that the model does not include the zeros in the data, fail to reflect the full dataset.
@@ -507,6 +516,20 @@ tweedie_a <- glm(ahi ~ ageyears, data = dmd_apnoea, family = tweedie(var.power=p
 summary(tweedie_a)
 plot(tweedie_a)
 gamma_gof(tweedie_a, p)
+# Coefficients:
+#             Estimate Std. Error t value Pr(>|t|)    
+# (Intercept)  1.65789    0.17636   9.401 1.73e-15 ***
+# ageyears     0.01790    0.00629   2.845  0.00536 **
+# ---
+# Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+# (Dispersion parameter for Tweedie family taken to be 2.474872)
+
+#     Null deviance: 276.65  on 103  degrees of freedom
+# Residual deviance: 257.44  on 102  degrees of freedom
+# AIC: NA
+
+# Number of Fisher Scoring iterations: 4
 
 # 1.5926 : 290.8978  268.8013  677.3355  0.07595988
 # 1.6610 : 262.2259  243.0267  668.9307  0.07321637
@@ -533,6 +556,10 @@ quantile(coef_boot, c(0.025, 0.975))
 qqnorm(coef_boot)
 ```
 
+```{R}
+sd(dmd_apnoea$ageyears)
+```
+
 (3) missing other relevant predictors.
 ```{R}
 quasigamma_s <- glm(ahi ~ sex, data = dmd_apnoea, family = quasi(link = "log", variance = "mu^2"))
@@ -542,7 +569,7 @@ plot(quasigamma_s)
 ```
 
 ```{R}
-quasigamma_as <- glm(ahi ~ ageyears + sex, data = dmd_apnoea, family = quasi(link = "log", variance = "mu^2"))
+quasigamma_as <- glm(ahi ~ ageyears * sex, data = dmd_apnoea, family = quasi(link = "log", variance = "mu^2"))
 summary(quasigamma_as)
 gamma_gof(quasigamma_as, 2)   # 171.7682  159.8157  643.6096  0.06958532
 plot(quasigamma_as)
@@ -566,11 +593,18 @@ anova(quasigamma_at)
 ```
 
 ```{R}
+quasigamma_st <- glm(ahi ~ sex * type, data = dmd_apnoea, family = quasi(link = "log", variance = "mu^2"))
+summary(quasigamma_st)
+gamma_gof(quasigamma_st, 2)   # 171.7682  158.3409  648.2584  0.07817118
+plot(quasigamma_st)
+anova(quasigamma_st)
+```
+
+```{R}
 quasigamma_ast <- glm(ahi ~ ageyears + type + sex, data = dmd_apnoea, family = quasi(link = "log", variance = "mu^2"))
 summary(quasigamma_ast)
 gamma_gof(quasigamma_ast, 2)   # 171.7682  150.6353  642.936  0.1230316
-plot(quasigamma_ast)
-AIC(quasigamma_ast, quasigamma_a)
+#plot(quasigamma_ast)
 ```
 
 
@@ -578,9 +612,7 @@ V. Binomial GLM for severe sleep apnoea.
 8. A patient is defined to have severe sleep apnoea if their AHI is greater than 10 events per hour.
     Determine the effect on the odds of sleep apnoea of a 10 year increase in age, with a confidence interval.
 ```{R}
-# Create a binary variable for severe sleep apnoea
 dmd_apnoea$severe_apnoea <- ifelse(dmd_apnoea$ahi > 10, 1, 0)
-# Fit a binomial GLM model for severe sleep apnoea *of a 10 year increase in age*
 binom_a <- glm(severe_apnoea ~ ageyears, data = dmd_apnoea, family = binomial(link = "logit"))
 summary(binom_a)
 # Coefficients:
@@ -599,6 +631,7 @@ summary(binom_a)
 # Number of Fisher Scoring iterations: 4
 
 # Odds ratio for a 10 year increase in age
+plot(binom_a)
 exp(10 * coef(binom_a)["ageyears"])
 # ageyears
 # 1.409745
@@ -606,6 +639,42 @@ exp(10 * coef(binom_a)["ageyears"])
 exp(10 * confint(binom_a)["ageyears", ])
 #    2.5 %   97.5 % 
 # 1.091037 1.847164
+```
+
+```{R}
+
+pred_severe <- predict(binom_a, newdata = dmd_apnoea, type = "response")
+qqplot(pred_severe, dmd_apnoea$severe_apnoea)
+
+pred_severe <- ifelse(pred_severe > 0.5, 1, 0)
+table(pred_severe, dmd_apnoea$severe_apnoea)
+
+```
 
 
+```{R}
+binom_at <- glm(severe_apnoea ~ ageyears + type, data = dmd_apnoea, family = binomial(link = "logit"))
+summary(binom_at)
+
+log_odds_dmd_18 <- coef(binom_at)["(Intercept)"] + 
+               coef(binom_at)["ageyears"] * 18 +
+                coef(binom_at)["typeDMD"] * 1
+prob_dmd_18 <- exp(log_odds_dmd_18) / (1 + exp(log_odds_dmd_18))
+se_log_odds_dmd_18 <- sqrt(vcov(binom_at)["(Intercept)", "(Intercept)"] + 
+                  (18^2) * vcov(binom_at)["ageyears", "ageyears"] + 
+                  vcov(binom_at)["typeDMD", "typeDMD"] + 
+                  2 * 18 * vcov(binom_at)["(Intercept)", "ageyears"] + 
+                  2 * 18 * vcov(binom_at)["ageyears", "typeDMD"] +
+                  2 * vcov(binom_at)["(Intercept)", "typeDMD"])
+log_odds_dmd_18_CI <- c(log_odds_dmd_18 - 1.96 * se_log_odds_dmd_18, log_odds_dmd_18 + 1.96 * se_log_odds_dmd_18)
+prob_dmd_18_CI <- exp(log_odds_dmd_18_CI) / (1 + exp(log_odds_dmd_18_CI))
+print(prob_dmd_18)   # 0.2984071
+print(prob_dmd_18_CI)   # 0.1693345   0.4701760
+```
+
+```{R}
+pred_severe <- predict(binom_at, newdata = dmd_apnoea, type = "response")
+qqplot(pred_severe, dmd_apnoea$severe_apnoea)
+pred_severe <- ifelse(pred_severe > 0.5, 1, 0)
+table(pred_severe, dmd_apnoea$severe_apnoea)
 ```
